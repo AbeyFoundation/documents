@@ -1,4 +1,4 @@
-# Abey Whitepaper
+# Abey 3.0 Whitepaper
 
 ## Table of Contents
 - [Abstract](#abstract)
@@ -29,7 +29,7 @@
 
 ## Abstract
 
-In this paper, we present the initial design of **Abey (3.0+)** and other technical details. Briefly, our consensus design enjoys the same consistency, liveness, transaction finality, and security guarantees. We discuss optimizations, such as the frequency of rotating committee members and physical timestamp restrictions. The primary focus of Abey is to advance these concepts and build a blockchain specifically designed for the Abey ecosystem. We also utilize:
+In this paper, we present the initial design of **Abey 3.0** and other technical details. Briefly, our consensus design enjoys the same consistency, liveness, transaction finality, and security guarantees. We discuss optimizations, such as the frequency of rotating committee members and physical timestamp restrictions. The primary focus of Abey is to advance these concepts and build a blockchain specifically designed for the Abey ecosystem. We also utilize:
 
 1. Data sharding and speculative transactions.  
 2. Evaluation of smart contracts in a hybrid cloud infrastructure.  
@@ -68,7 +68,7 @@ Our consensus design is a proof-of-stake model that has been extended to meet th
 
 #### 3.2.1 Daily Off-chain Consensus Protocol
 
-In **DailyBFT**, committee members execute an **offchain Byzantine Fault Tolerant (BFT) instance** to establish a daily transaction log, while non-members verify progress by counting signatures from the committee. This design extends security guarantees to both non-members and late-joining nodes. It enforces a **termination agreement**, requiring that all honest participants converge on the same final log once the protocol terminates.  
+In **DailyBFT**, committee members execute an **off-chain Byzantine Fault Tolerant (BFT) instance** to establish a daily transaction log, while non-members verify progress by counting signatures from the committee. This design extends security guarantees to both non-members and late-joining nodes. It enforces a **termination agreement**, requiring that all honest participants converge on the same final log once the protocol terminates.  
 
 Committee members produce **signed daily log hashes**, which are consumed by the Proof-of-Stake consensus protocol. These signed hashes guarantee **completeness** (no valid transaction is omitted) and **unforgeability** (signatures cannot be fabricated).  
 
