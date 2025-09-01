@@ -100,7 +100,25 @@ Committees rotate after fixed time periods, with the chain serving as a logical 
 
 #### 3.4.1 Physical Timing Restriction
 
-High-throughput applications, such as exchanges, risk unfairness if committee members reorder transactions within micro time windows. Abey requires that transactions carry sticky physical timestamps (*Tp*). Validators check that |current_time - *Tp*| ≤ *TΔ*. Transactions from the same sender must also maintain increasing timestamp order.
+In conventional consensus designs, miners, committee members, or leaders are often able to **reorder transactions** within a short timing window. While this flexibility may not affect some applications, it creates a critical fairness problem for decentralized systems such as **commercial exchanges**, where the exact timing of trades must be preserved. If reordering is permitted, malicious or even rational participants may reorder or insert their own transactions to gain unfair profit. This incentive becomes even stronger under conditions of **high throughput**.  
+
+A further complication arises because malicious reordering is difficult to detect: natural **network latency** already causes reordering, and latency values are only observable by the receiving node. Thus, nodes can always claim latency-related delays, making it impossible to prove malicious intent.  
+
+To mitigate these problems—particularly for use cases like decentralized advertisement exchanges—Abey blockchain introduces a mechanism called the **sticky timestamp**. With this approach, a client must attach a physical timestamp (*Tp*) to each transaction at the moment it is created. This timestamp, along with other transaction data, is digitally signed. Validators then enforce additional checks using a heuristic parameter (*TΔ*) to ensure the validity of the timestamp. The procedure is shown in **Algorithm 1**.  
+
+During log materialization within the BFT process, the leader orders the batch of transactions primarily by their physical timestamps, using sequence numbers to break ties (a rare case). While this ordering step could technically be deferred until evaluation and verification, performing it early simplifies the workflow.  
+
+This modification introduces several important properties:  
+
+1. **Strict intra-node ordering:** The order of transactions from any node *Ni* is preserved according to their physical timestamps. This eliminates the risk of malicious reordering between two or more transactions from the same node.  
+2. **Batch-level ordering:** Within any batch of transactions output by the BFT committee, transactions are strictly ordered by timestamp.  
+3. **Resistance to forged timestamps:** Nodes cannot freely manipulate timestamps due to the *TΔ* restriction window, preventing unrealistic backdating or future-dating of transactions.  
+
+However, this design also introduces some trade-offs:  
+
+- **Reduced throughput:** If the parameter *TΔ* is set poorly relative to varying network latencies, transactions may be unnecessarily aborted.  
+- **Clock-related rejection:** Committee members can still exploit unsynchronized clocks by rejecting certain transactions. Nevertheless, members already possess the ability to reject transactions selectively.  
+- **Risk of honest-node rejection:** Honest nodes with poorly synchronized clocks may reject valid transactions. This risk can be mitigated by enforcing stricter requirements for committee eligibility, such as proof of synchronized timekeeping.  
 
 **Algorithm 1: Extra Verification Regarding Physical Timestamp**
 ```pseudo
