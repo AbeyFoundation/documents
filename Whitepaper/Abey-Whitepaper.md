@@ -68,7 +68,21 @@ Our consensus design is a proof-of-stake model that has been extended to meet th
 
 #### 3.2.1 Daily Off-chain Consensus Protocol
 
-DailyBFT enables committee members to execute a BFT instance off-chain to determine a daily log of transactions, while non-members verify signatures. This allows all honest nodes, including those that join late, to agree on the same final log. Committee members output signed daily log hashes, which the on-chain PoS consensus consumes. These signatures are tagged with prefixes (“0” for BFT, “1” for DailyBFT) to prevent namespace collisions.
+In **DailyBFT**, committee members execute an **offchain Byzantine Fault Tolerant (BFT) instance** to establish a daily transaction log, while non-members verify progress by counting signatures from the committee. This design extends security guarantees to both non-members and late-joining nodes. It enforces a **termination agreement**, requiring that all honest participants converge on the same final log once the protocol terminates.  
+
+Committee members produce **signed daily log hashes**, which are consumed by the Proof-of-Stake consensus protocol. These signed hashes guarantee **completeness** (no valid transaction is omitted) and **unforgeability** (signatures cannot be fabricated).  
+
+During **key generation**, each node’s public key is added to a maintained key list. Upon receiving a **committee signal**, nodes may be conditionally elected as committee members. The system selectively opens participation to the committee through this controlled election mechanism.  
+
+- **If the node is a BFT committee member:**  
+  A **BFT virtual node** is instantiated, denoted as *BFTpk*, which begins receiving transactions (*TXs*). The log’s completion status is continuously monitored, and the process halts once a **stop signal** is signed by at least one-third of the initially designated committee public keys. Throughout execution, the protocol performs a recurring *“Until Done”* check: after each gossip round completes, all stop log entries are removed, ensuring freshness and consistency.  
+
+- **If the node is not a BFT committee member:**  
+  Upon receiving a transaction, the node appends it to its local history and verifies that the transaction has been signed by at least one-third of the distinct committee public keys. This guarantees the correctness and validity of the received log.  
+
+Finally, to prevent **namespace collisions**, the signing algorithm uses unique prefixes:  
+- `"0"` for messages belonging to the inner BFT instance.  
+- `"1"` for messages belonging to the outer DailyBFT layer.  
 
 #### 3.2.2 Mempool Subprotocol
 
