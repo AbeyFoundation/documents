@@ -104,7 +104,7 @@ In conventional consensus designs, miners, committee members, or leaders are oft
 
 A further complication arises because malicious reordering is difficult to detect: natural **network latency** already causes reordering, and latency values are only observable by the receiving node. Thus, nodes can always claim latency-related delays, making it impossible to prove malicious intent.  
 
-To mitigate these problems—particularly for use cases like decentralized advertisement exchanges, Abey introduces a mechanism called the **sticky timestamp**. With this approach, a client must attach a physical timestamp (*Tp*) to each transaction at the moment it is created. This timestamp, along with other transaction data, is digitally signed. Validators then enforce additional checks using a heuristic parameter (*TΔ*) to ensure the validity of the timestamp. The procedure is shown in **Algorithm 1**.  
+To mitigate these problems—particularly for use cases like decentralized exchanges, Abey introduces a mechanism called the **sticky timestamp**. With this approach, a client must attach a physical timestamp (*Tp*) to each transaction at the moment it is created. This timestamp, along with other transaction data, is digitally signed. Validators then enforce additional checks using a heuristic parameter (*TΔ*) to ensure the validity of the timestamp. The procedure is shown in **Algorithm 1**.  
 
 During log materialization within the BFT process, the leader orders the batch of transactions primarily by their physical timestamps, using sequence numbers to break ties (a rare case). While this ordering step could technically be deferred until evaluation and verification, performing it early simplifies the workflow.  
 
