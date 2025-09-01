@@ -306,7 +306,42 @@ This design ensures speculative execution remains serializable across shards.
 
 ### 4.1 Design Rationale
 
-Smart contracts extend the blockchain from a passive ledger into a programmable platform for decentralized applications. Abey requires strict determinism: every node must produce identical outcomes for the same contract execution. Ethereum’s Yellow Paper [[12]](#ref-12) provided the early specification, although it is highly formal and difficult for developers to understand. KEVM [[13]](#ref-13) illustrates executable semantics, offering more clarity. By contrast, container-driven models like Hyperledger Fabric [[14]](#ref-14) encounter performance bottlenecks at high scale [[15]](#ref-15)–[[19]](#ref-19). Abey’s approach favors a virtual machine design tailored to scalability and portability.
+Because Abey blockchain is built as a **hybrid model**, we have the opportunity to explore a broader design space, including the potential of a **hybrid cloud ecosystem** to support scalability and performance.  
+
+A recurring challenge in blockchain documentation has been the **notation-heavy style** of Ethereum’s Yellow Paper [[12]](#ref-12). While rigorous, its mathematical format can make specifications difficult to interpret and apply. To address this, we adopt an approach similar to the **KEVM Jello Paper** [[13]](#ref-13), which provides formal semantics in a clear and accessible format. Our goal is to document both the **Ethereum Virtual Machine (EVM)** and the **Abey Virtual Machine (AVM)** (see [Section 4.2](#42-abey-virtual-machine-avm)) in a similarly transparent way.  
+
+---
+
+### 4.1.1 Containers vs. Virtual Machines
+
+A critical design question is whether **containers** can effectively replace **virtual machines (VMs)** as the execution environment for smart contracts.  
+
+One framework that closely aligns with this idea is **Hyperledger Fabric** [[14]](#ref-14). However, converting Fabric’s **permissioned architecture** into a **permissionless public blockchain** raises significant challenges, most notably the **chaincode issue**.  
+
+In Fabric, a chaincode (a smart contract) can be deployed within a single container. While this works in a permissioned setting, it is **not scalable for public blockchains**. Because each node in a public chain must maintain a copy of all smart contracts, the system would require **thousands of containers per node** — an impractical and resource-intensive approach.  
+
+The community has already examined container scalability limits:  
+- **Kubernetes** supports approximately **100 pods per node**, which equates to around **250 containers per node** [[15]](#ref-15).  
+- **Red Hat OpenShift Container Platform 3.9** defines similar cluster limits [[16]](#ref-16).  
+- Even with advanced storage optimizations such as **brick multiplexing** [[17]](#ref-17), the maximum number of containers per node (*MAX_CONTR*) cannot realistically reach the **1,000+ range** needed to handle large-scale workloads.  
+
+Further discussion on this limitation can be found in **Kubernetes GitHub issue reports** [[18]](#ref-18), which highlight how workload-specific configurations typically determine the maximum number of pods per node. In practice, those aiming to scale containers generally prefer **horizontal scaling** (adding more nodes) over **vertical scaling** (stacking more workload onto a single node) [[19]](#ref-19). Vertical scaling significantly increases design complexity and offers diminishing returns.  
+
+Because decentralized blockchains inherently carry heavier workloads than centralized systems, simply scaling containers is not a convincing solution for sustainability. Ethereum itself already supports **over 1,000 deployed smart contracts**, and applying a container-only model here would amount to little more than a **crude optimization attempt** within the current container ecosystem.  
+
+---
+
+### 4.1.2 Containers in Serverless Architectures
+
+A possible alternative is to use **containers in a serverless architecture**. In such a system, containers are spun up only when needed, reducing persistent overhead.  
+
+However, consider a scenario where more than **2,000 contracts** are online and the concurrent invocation calls (within a moving time window) exceed the *MAX_CONTR* limit. At that point, the same scalability bottleneck reappears.  
+
+The only practical safeguard would be to enforce **throttling mechanisms** on the maximum number of concurrent requests. While this prevents system overload, it **severely limits the Transactions Per Second (TPS)** achievable at the consensus layer. In effect, engineering constraints become the bottleneck, limiting what the blockchain could otherwise achieve.  
+
+For this reason, we choose to **retain the EVM design**, albeit with modifications tailored to Abey’s requirements. This approach provides a more stable and scalable foundation for executing smart contracts while avoiding the pitfalls of over-reliance on containers.  
+
+---
 
 ### 4.2 Abey Virtual Machine (AVM)
 
