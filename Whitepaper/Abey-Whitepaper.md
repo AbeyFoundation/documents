@@ -125,18 +125,18 @@ However, this design also introduces some trade-offs:
 Data: Input Transaction TX
 Result: Boolean (verification passed or failed)
 
-1  current_time ← Time.Now()
-2  if |current_time - TX.Tp| > TΔ then
-3      return false
-4  var txn_history = static dictionary of lists
-5  if txn_history[TX.from] == NULL then
-6      txn_history[TX.from] = [TX]
-7  else
-8      if txn_history[TX.from][-1].Tp - TX.Tp > 0 then
-9          return false
-10     else
-11         txn_history[TX.from].append(TX)
-12         return true
+current_time ← Time.Now()
+if |current_time - TX.Tp| > TΔ then
+    return false
+var txn_history = static dictionary of lists
+if txn_history[TX.from] == NULL then
+    txn_history[TX.from] = [TX]
+else
+    if txn_history[TX.from][-1].Tp - TX.Tp > 0 then
+        return false
+    else
+        txn_history[TX.from].append(TX)
+        return true
 ```
 
 ### 3.5 Computation and Data Sharding, and Speculative Transaction Execution
@@ -236,23 +236,67 @@ On Write Address(addr):
     wait for 2f+1 replies, else abort
   update TX.after and TX.lowerBound
 
-On Finish:
-  adjust bounds from before/after
-  if lowerBound > upperBound: abort
-  broadcast Precommit(ID, (lowerBound+upperBound)/2)
+On Finish Execution:
+  for every TX' in TX.before do
+      TX.lowerBound = max(TX.lowerBound, TX'.upperBound)
+
+  for every TX' in TX.after do
+      TX.upperBound = min(TX.upperBound, TX'.lowerBound)
+
+  if TX.lowerBound > TX.upperBound then
+      Abort TX
+
+  Broadcast Precommit(TX.ID, (TX.lowerBound + TX.upperBound) / 2) 
+      to all remote shards previously accessed by TX
+
+// Note: If TX.upperBound = ∞, assign an arbitrary number greater than TX.lowerBound.
+
+On receive readRemote(addr, ID):
+  if host(addr) == Si then
+      DS[addr].readers.append(ID)
+      return DS[addr].value, DS[addr].wts, DS[addr].writers
+  else
+      Ignore
+
+On receive writeRemote(addr, ID):
+  if host(addr) == Si then
+      DS[addr].writers.append(ID)
+      Write to a local copy
+      return DS[addr].rts, DS[addr].readers
+  else
+      Ignore
 ```
 
 **Algorithm 3: Speculative Commit**
 ```pseudo
 On receive Precommit(ID, cts):
-  validate bounds, else abort
-  update read/write timestamps
-  broadcast Commit(ID, batchCounter)
+  Look up TX by ID
+  if Found and cts not in [TX.lowerBound, TX.upperBound] then
+      Broadcast Abort(ID) to the sender’s shard
+  else
+      TX.lowerBound = TX.upperBound = cts
+      For every data sector DS[addr] TX reads:
+          DS[addr].rts = max(DS[addr].rts, cts)
+      For every data sector DS[addr] TX writes:
+          DS[addr].wts = max(DS[addr].wts, cts)
+      Broadcast Commit(ID, batchCounter) to the sender’s shard
 
-On receive Commit(ID):
-  mark TX committed
-  update state metadata
-  output log sorted by commit timestamp
+// batchCounter is a counter that increases by 1 
+// whenever the shard submits a batch of logs to the primary shard.
+
+On receive 2f + 1 Commit(ID, batchCounter) 
+from each remote shard accessed by TX:
+  TX.lowerBound = TX.upperBound = cts
+  For every data sector DS[addr] TX reads:
+      DS[addr].rts = max(DS[addr].rts, cts)
+  For every data sector DS[addr] TX writes:
+      DS[addr].wts = max(DS[addr].wts, cts)
+  Mark TX committed
+  Set TX.metadata = [ShardID, batchCounter]
+
+On output log:
+  Sort transactions by commit timestamp (cts)
+  Break ties using physical timestamp
 ```
 
 This design ensures speculative execution remains serializable across shards.
