@@ -143,6 +143,70 @@ Result: Boolean (verification passed or failed)
 
 Abey introduces sharding and speculative execution. Normal shards handle subsets of transactions, while a primary shard coordinates and finalizes. Shards do not overlap in membership. Each shard maintains state partitions. Transactions execute speculatively with lower and upper bounds, validated through two-phase commit across shards.
 
+#### Shard Structure
+
+In Hybrid Consensus, DailyBFT instances are indexed into a deterministic sequence, DailyBFT\[1 … R\]. Our modification allows **multiple sequences of DailyBFT instances** to exist concurrently. Specifically, we denote the *t*-th DailyBFT sequence as shard *St*.  
+
+- The number of shards is fixed as *C*.  
+- Each DailyBFT instance functions as a **normal shard**.  
+- In addition to these *C* normal shards, we introduce a **primary shard Sp**, composed of *csize* nodes.  
+
+The **primary shard** serves two roles:  
+1. It finalizes the ordering of outputs from all normal shards.  
+2. It acts as the **coordinator** in distributed transaction processing.  
+
+Normal shards do not directly interact with the Hybrid Consensus component. Instead, they **submit logs to the primary shard**, which then communicates with Hybrid Consensus on their behalf.  
+
+#### Shard Independence and Election
+
+To ensure fairness and security, **no two shards (normal or primary) may share nodes**. This constraint is enforced during the committee selection process. The election of multiple shards follows the same procedure described in [Section 3.3](#33-variant-day-length-and-committee-election).  
+
+#### State Partitioning
+
+The **global state** is uniformly partitioned into *C* shards, each responsible for a specific account range. This ensures that queries directed to a shard always yield a **consistent state**.  
+
+- Data is split into **data sectors**, each identified by an address.  
+- Each data sector `DS[addr]` contains metadata, including:  
+  - *rts* (read timestamp)  
+  - *wts* (write timestamp)  
+  - *readers*  
+  - *writers*  
+
+The mapping from data position to sector address is public, and the host shard for any address can be determined by the function `host(addr)`.  
+
+#### Speculative Execution with Logical Timestamps
+
+By treating each normal shard as a distributed processing unit, we incorporate the design of **logical timestamps** [[10]](#ref-10) within distributed transaction processing systems [[11]](#ref-11). This enables parallel speculative execution. Our approach builds on a simplified version of **MaaT**, without auto-adjustment of timestamps for other transactions.  
+
+Normal shards operate like DailyBFT instances, but with the following modifications to support parallel, speculative execution.  
+
+#### Primary Shard Responsibilities
+
+The primary shard collects and processes outputs from all normal shards:  
+
+1. **Batch Collection:**  
+   When the primary shard receives a batch of transactions from a shard, it waits for the corresponding batches from all other shards.  
+   - If a shard fails to provide its batch within a timeout, the batch is deemed failed.  
+   - In this case, a **committee switch** is triggered at the beginning of the next day.  
+
+2. **Ordering Transactions:**  
+   After receiving all shard logs, the primary shard sorts the transactions by their **commit timestamps**.  
+   - If a transaction belongs to an earlier batch, the batch number is used as the first key for ordering.  
+   - If a transaction’s physical timestamp conflicts with timestamps from other shards, the entire batch is considered invalid, and **all transactions in that batch are aborted**.  
+
+3. **Filtering Transactions:**  
+   After sorting, the primary shard filters the transactions to retain the **longest non-decreasing sequence** in terms of physical timestamps.  
+
+4. **Final Log:**  
+   The primary shard outputs the finalized log to the DPoS consensus component as that day’s log.  
+
+#### Limitations
+
+While this sharding and speculative execution scheme significantly improves parallelism and throughput, it also introduces trade-offs:  
+
+- **Delayed confirmation:** Unlike instant-finality protocols, this design requires additional coordination and ordering steps, leading to longer confirmation times.  
+- **Optimization opportunities:** Further refinements are possible to reduce latency and improve batch recovery.  
+
 **Algorithm 2: Sharding and Speculative Transaction Processing**
 ```pseudo
 On BecomeShard:
