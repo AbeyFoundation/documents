@@ -1,449 +1,269 @@
-**ABSTRACT**
+# Abey Blockchain Whitepaper
 
-In this paper, we present the initial design of Abey Blockchain (3.0+) and other technical details. Briefly, our consensus design enjoys the same consistency, liveness, transaction finality, and security guarantee. We discuss optimizations like the frequency of rotating committee members and physical timestamp restrictions. The primary focus of Abey is to advance these concepts and to build a blockchain that is uniquely designed for the Abey community. We also utilize (i) data sharding and speculative transactions, (ii) evaluation of running of smart contracts in a hybrid cloud infrastructure, and (iii) usage of existing volunteer computing protocols for something we introduce as a compensation infrastructure. 
+## Table of Contents
+- [Abstract](#abstract)
+- [1. Introduction](#1-introduction)
+- [2. Background](#2-background)
+  - [2.1 Related Works](#21-related-works)
+- [3. Consensus](#3-consensus)
+  - [3.1 Design Overview](#31-design-overview)
+  - [3.2 Recap of DPoS Consensus Protocol](#32-recap-of-dpos-consensus-protocol)
+    - [3.2.1 Daily Off-Chain Consensus Protocol](#321-daily-off-chain-consensus-protocol)
+    - [3.2.2 Mempool Subprotocol](#322-mempool-subprotocol)
+    - [3.2.3 Main Consensus Protocol](#323-main-consensus-protocol)
+  - [3.3 Variant Day Length and Committee Election](#33-variant-day-length-and-committee-election)
+  - [3.4 Application-Specific Design](#34-application-specific-design)
+    - [3.4.1 Physical Timing Restriction](#341-physical-timing-restriction)
+  - [3.5 Computation and Data Sharding, and Speculative Transaction Execution](#35-computation-and-data-sharding-and-speculative-transaction-execution)
+- [4. Smart Contracts in Virtual Machines](#4-smart-contracts-in-virtual-machines)
+  - [4.1 Design Rationale](#41-design-rationale)
+  - [4.2 Abey Chain Virtual Machine (AVM)](#42-abey-chain-virtual-machine-avm)
+- [5. Blocks, State, and Transactions](#5-blocks-state-and-transactions)
+- [6. Incentive Design](#6-incentive-design)
+  - [6.1 Gas Fee and Sharding](#61-gas-fee-and-sharding)
+- [7. Future Directions](#7-future-directions)
+- [8. Conclusions](#8-conclusions)
+- [References](#references)
 
-**1. INTRODUCTION**
+---
 
-With the surging popularity of cryptocurrencies, blockchain technology has caught the attention of both industry and academia. One can think of blockchain as a shared computing environment involving peers to join and quit freely, with the premise of a commonly agreed consensus protocol. The decentralized nature of blockchain, together with transaction transparency, autonomy, and immutability, are critical to cryptocurrencies, drawing the baseline for such systems. However The top earlier-designed cryptocurrencies such as Bitcoin[1] and Ethereum[2], however, have been widely recognized as unscalable in terms of transaction rate and are not economically viable as they require severe energy consumption and computation power. 
+## Abstract
 
-With the demand for apps and platforms using public blockchain growing in the real world, a viable protocol that enables higher transaction rates is the main focus of new systems. For example, consider a generic public blockchain that could host computationally intensive peer-to-peer gaming applications with a very large user base. If such a chain also hosts smart contracts for Initial Coin Offerings (ICO) in addition to other applications, we could readily expect a huge delay in transaction confirmation times. 
+In this paper, we present the initial design of Abey Blockchain (3.0+) and its technical details. Our consensus design guarantees consistency, liveness, transaction finality, and security. We discuss optimizations such as the frequency of rotating committee members and physical timestamp restrictions. The primary focus of Abey Blockchain is to advance these concepts and build a blockchain uniquely designed for the Abey community. We also utilize: (i) data sharding and speculative transactions, (ii) evaluation of smart contracts in a hybrid cloud infrastructure, and (iii) volunteer computing protocols for a new compensation infrastructure.
 
-There are other models like the delegated mechanism of Proof of Stake (PoS) and Hybrid Consensus. Abey 2.0 adopts hybrid consensus which incorporates a modified form of PBFT (Practical Byzantine Fault Tolerance)[3] and Proof of Work (PoW) consensus. Abey 3.0 is phasing out the energy-intensive portion of its validation mechanism known as Proof-of-Work (PoW), to a much more energy-efficient process known as “staking”, or more specifically, Proof-of-Stake (PoS). The PoS protocol with validators could facilitate high throughput and is much more energy-efficient than PoW. The PoS protocol ensures safety as long as only one-third of the validators in the system are intentionally or unintentionally malicious adversaries, at a time.  
+---
 
-In this paper, we propose Abey 3.0, a PoS Protocol in which validators archive consensus using a modified form of PBFT (Practical Byzantine Fault Tolerance)[4]. The PoS consensus ensures incentivization and committee selection while the validators act as a high-performance consensus with capabilities like instant finality with high throughput, transaction validation, rotating committee for a fair trade economy, and a compensation infrastructure to deal with non-uniform infrastructure. The protocol allows it to tolerate corruption at a maximum of about one-third of peer nodes. 
+## 1. Introduction
 
-**2. BACKGROUND**
+With the surging popularity of cryptocurrencies, blockchain technology has caught the attention of both industry and academia. Blockchain can be viewed as a shared computing environment involving peers that can freely join and leave, governed by a consensus protocol. Its decentralized nature, along with transaction transparency, autonomy, and immutability, forms the foundation of cryptocurrencies.
 
-The core strength of this proposal lies in the recognition of the theorems of DPoS, using DailyBFT as committee members allow for the rotating committee feature which provides for better fairness on the consensus-validating peers. 
+However, earlier cryptocurrencies such as Bitcoin [[1]](#references) and Ethereum [[2]](#references) are widely recognized as unscalable in terms of transaction rate and are economically inefficient due to high energy and computation demands.
 
-**2.1. Related Works** 
+With growing demand for public blockchain applications, a viable protocol enabling higher transaction rates is essential. For example, a public blockchain that hosts peer-to-peer gaming applications and smart contracts for Initial Coin Offerings (ICOs) would face severe delays in transaction confirmation without improved scalability.
 
-In PoS systems, the native token stores value and voting power rather than just value as in PoW systems. PoS protocol achieves Sybil resistance in a BFT way while consuming a fraction of the energy. Rather than relying on computers racing to generate the appropriate hash, the act of locking up tokens, or staking, determines participation in a PoS protocol. This mechanism attempts to reduce the computational cost of PoW schemes by selecting validators in proportion to their quantity of staked holdings. PoS-based blockchains come with notable benefits and considerations that differ from PoW.
+Alternative models such as Delegated Proof-of-Stake (DPoS) and Hybrid Consensus have emerged. Abey Blockchain 2.0 adopts hybrid consensus, combining a modified Practical Byzantine Fault Tolerance (PBFT) [[3]](#references) with Proof-of-Work (PoW). Abey Blockchain 3.0 phases out energy-intensive PoW in favor of the more efficient Proof-of-Stake (PoS). PoS with validators enables high throughput, is energy efficient, and remains secure as long as no more than one-third of validators are malicious at any time.
 
-**3. CONSENSUS**
+In this paper, we propose Abey Blockchain 3.0, a PoS protocol where validators achieve consensus using a modified PBFT [[4]](#references). This system incentivizes validators, ensures fair committee rotation, provides instant finality with high throughput, and supports a compensation infrastructure for non-uniform resources. The protocol tolerates corruption of up to one-third of nodes.
 
-Our consensus design is a PoS consensus, with several modifications and improvements in order to tailor the application scenarios that we focus on. In this section, we will assume the readers are familiar with the details of the PoS consensus protocol.  
+---
 
-**3.1. Design Overview** 
+## 2. Background
 
-In this subsection, we will present an overview of our consensus protocol. This protocol uses the same abstract symbols and definitions in Hybrid Consensus[5]. 
+The strength of this proposal lies in recognizing the theorems of DPoS. By using DailyBFT as committee members, Abey Blockchain supports rotating committees, enhancing fairness among consensus validators.
 
-Our adversary model follows the assumptions in[6] where adversaries are allowed to mildly adaptively corrupt any node, while corruptions do not take effect immediately. In future updates, we will formally explain our modifications in the Universal Composability model[7]. 
+### 2.1 Related Works
 
-Note that all the pseudocodes in this paper are simplified. They are not optimized for engineering.
+In PoS systems, the native token represents both value and voting power, unlike PoW systems where tokens only store value. PoS achieves Sybil resistance via Byzantine Fault Tolerance (BFT) while consuming significantly less energy. Participation in PoS depends on token staking, reducing computational costs compared to PoW. Validators are chosen proportionally to their stake, offering notable benefits and trade-offs distinct from PoW systems.
 
-**3.2. Recap of DPoS Consensus Protocol** 
+---
 
-In this subsection, we articulate major components and definitions from the Abey 3.0 PoS consensus protocol. 
+## 3. Consensus
 
-**3.2.1 Daily offchain Consensus Protocol** 
+Our consensus design is a PoS model with modifications to support application-specific requirements. We assume readers are familiar with PoS fundamentals.
 
-In DailyBFT, committee members run an offchain BFT instance to decide a daily log, whereas non-members count signatures from committee members.
+### 3.1 Design Overview
 
-It extends security to committee non-members and late-spawning nodes. It carries a termination agreement that requires all honest nodes to agree on the same final log upon termination. In DailyBFT, committee members output signed daily log hashes, which are then consumed by the PoS Consensus protocol. These signed daily log hashes satisfy completeness and unforgeability.
+The protocol builds on Hybrid Consensus [[5]](#references). Our adversary model allows mild adaptive corruption of nodes, with delayed effects [[6]](#references). Future versions will formally define modifications under the Universal Composability model [[7]](#references).
 
-On keygen, it adds a public key to a list of keys. On receiving a comm signal, a conditional election of the node as a committee member occurs. The environment opens up the committee selectively. 
+*Note: All pseudocode presented here is simplified and not optimized for engineering.*
 
-Here is how the subprotocol works for when the **node is a BFT member: -** A BFT virtual node is then forked. The BFT virtual node, denoted by *BFTpk*, then starts receiving the transactions (TXs). The log completion is checked and stopped if the stop signal has been signed off by at least a third of the initial comm distinct public keys. During this process, a continuous “Until Done” check happens, once the completion of gossip happens at each step, all the stop log entries are removed. 
+### 3.2 Recap of DPoS Consensus Protocol
 
-Here is how the subprotocol works for when the node is **not a BFT member: -** On receival of a transaction, the message is added to history and signed by a third of the initial comm distinct public keys. 
+The Abey Blockchain 3.0 PoS consensus protocol includes several subprotocols:
 
-The signing algorithm tags each message for the inner BFT instance with the prefix “0”, and each message for the outer DailyBFT with the prefix “1” to avoid namespace collision. 
+#### 3.2.1 Daily Off-Chain Consensus Protocol
 
-**3.2.2. The mempool subprotocol** 
+In DailyBFT, committee members run an off-chain BFT instance to decide a daily log, while non-members validate signatures. This provides security for non-members and late-joining nodes. Committee members output signed daily log hashes, consumed by the PoS consensus protocol. These signatures satisfy completeness and unforgeability.
 
-Initializes TXs with 0 and keeps track of incoming transactions with a Union set. On receiving a propose call, it adds the transactions to the block and communicates with a gossip protocol. It also supports query methods to return confirmed transactions. By keeping track of transactions in a set, it purges the ones already confirmed. 
+- **BFT Member Behavior**: A BFT virtual node (*BFTpk*) processes transactions (TXs). If a stop signal is signed by at least one-third of committee keys, logging ceases. Gossip checks ensure consensus.
+- **Non-BFT Member Behavior**: Transactions are added to history and signed by one-third of committee keys.
 
-**3.2.3. Main Consensus protocol** 
+The signing algorithm tags inner BFT messages with prefix "0" and DailyBFT messages with prefix "1" to prevent namespace collisions.
 
-A newly spawned node with an implicit message routing that carries with it the history of the transcripts sent and received. This interacts with the following components - Mempools, Preprocess, Daily Offchain Consensus, and on-chain validation.
-   
-**3.3. Variant Day Length and Committee Election** 
+#### 3.2.2 Mempool Subprotocol
 
-BFT committee instances are switched after a fixed period of time (with the chain as a logical clock)[8]. A new committee is formed simply by the miners of the latest csize number of blocks inside SlowChain. In our consensus design, we want to exploit the intuition that, if the committee behaves well, we don’t have to force them to switch, and therefore the overhead of switching committees could be prevented in some situations. On the other hand, this will raise the difficulty for new nodes to get elected as committee members if the previous committee keeps good records. Therefore, we still keep the design of forcibly switching the committee every fixed amount of time, but with a much lower frequency, (for example, the committee will be switched every *K* days). On the other hand, we incorporate the idea of authenticated complaints from Thunderella[9] where the SlowChain can be used as evidence of misbehavior by BFT committee members. That is, whenever committee misbehavior is detected from the SlowChain, the next day's starting point (not necessarily the *K*-th day) will trigger a forced switch.
-   
-**3.4. Application-Specific Design** 
+The mempool initializes transactions with 0 and tracks them in a set. On receiving a proposal, transactions are added to blocks and disseminated via gossip. Confirmed transactions are purged, and query methods return verified transactions.
 
-Our consensus design is aware of application-specific requirements and tailors to them, under the conditions that the consistency, liveness, and security properties are not compromised. 
+#### 3.2.3 Main Consensus Protocol
 
-**3.4.1. Physical Timing Restriction** 
+A new node inherits message history and interacts with mempools, preprocessing, off-chain consensus, and on-chain validation.
 
-Conventional consensus design by default allows miners /committee members/leaders to re-order transactions within a small timing window. This raises a problem for some decentralized applications such as commercial exchanges where the trading fairness requires the timing order between transactions to be carefully preserved, or otherwise malicious (or, even normal rational) participants will have the incentive to re-order transactions, or even insert their own transactions, to gain extra profits. And this incentive will be magnified under high throughput. 
+### 3.3 Variant Day Length and Committee Election
 
-What is even worse, is that such malicious re-ordering is impossible to distinguish because naturally network latency will cause re-ordering and such latencies can only be observed by the receiver itself therefore it has the final evidence of numbers regarding network latency. 
+Committees rotate after fixed periods (logical chain-based clocks) [[8]](#references). Miners of the latest *csize* blocks form new committees. Our design reduces switching frequency to minimize overhead, but enforces switches to maintain fairness. Misbehavior triggers forced switches, informed by Thunderella [[9]](#references).
 
-To support decentralized advertisement exchanges, we try to reduce such problems by incorporating one more restriction called sticky timestamp. More specifically, with a heuristic parameter *TΔ*, when proposing transactions, we require the client to put a physical timestamp Tp inside the metadata of the transaction, and this physical timestamp is signed together with the other parts of the transaction. Later when validators inside BFT verify the transaction, it will do the following extra checks as shown in **Algorithm 1**. 
+### 3.4 Application-Specific Design
 
-At the stage of materializing logs inside BFT, the leader will sort the transaction batch according to its physical timestamps and break ties (though very unlikely) with the sequence number. Actually, this step is not necessary because we can enforce the order later in the evaluation and verification. But for simplicity, we put it here. 
+Consensus adapts to specific application requirements without compromising consistency, liveness, or security.
 
-This set of modifications gives us several extra properties:
+#### 3.4.1 Physical Timing Restriction
 
-1) The order of transactions from any node Ni is internally preserved according to their physical timestamps. Thus, the sequence order of these transactions is strictly enforced. This will get rid of the possibility of some malicious re-ordering that involves two transactions from the same node.
-2) The order within a batch of transactions output by the BFT committee is strictly ordered by timestamps.
-3) Nodes cannot manipulate fake physical timestamps because of the timing window restriction.
+Committee members may reorder transactions within small time windows, risking fairness in high-throughput applications like exchanges. To mitigate this, Abey Blockchain requires sticky timestamps (*TΔ*). Transactions include signed physical timestamps (*Tp*), verified by validators.
+
+**Algorithm 1: Extra Verification Regarding Physical Timestamp**
+```pseudo
+Data: Input Transaction TX
+Result: Boolean (verification passed or failed)
+
+1  current_time ← Time.Now()
+2  if |current_time - TX.Tp| > TΔ then
+3      return false   // Reject if time skew is too large
+4  var txn_history = new static dictionary of lists
+5  if txn_history[TX.from] == NULL then
+6      txn_history[TX.from] = [TX]
+7  else
+8      if txn_history[TX.from][-1].Tp - TX.Tp > 0 then
+9          return false   // Enforce order from same node
+10     else
+11         txn_history[TX.from].append(TX)
+12         return true
+```
+
+### 3.5 Computation and Data Sharding, and Speculative Transaction Execution
+
+**Algorithm 2: Sharding and Speculative Transaction Processing**
+```pseudo
+On BecomeShard:
+  Initialize all the state data sectors: lastReaderTS = -1, lastWriterTS = -1, readers = [], writers = []
+
+On transaction TX on shard Si:
+  On Initialization:
+    TX.lowerBound = 0
+    TX.upperBound = ∞
+    TX.state = RUNNING
+    TX.before = []
+    TX.after = []
+    TX.ID = rand
+
+  On Read Address(addr):
+    if host(addr) == Si then
+        Send readRemote(addr) to itself
+    else
+        Broadcast readRemote(addr, TX.id) to host(addr)
+        Async wait for 2f+1 replies within timeout To
+        Abort TX on timeout
+    Let val, wts, IDs = majority reply
+    TX.before.append(IDs)
+    TX.lowerBound = max(TX.lowerBound, wts)
+    return val
+
+  On Write Address(addr):
+    if host(addr) == Si then
+        Send writeRemote(addr) to itself
+    else
+        Broadcast writeRemote(addr, TX.id) to host(addr)
+        Async wait for 2f+1 replies within timeout To
+        Abort TX on timeout
+    Let rts, IDs = majority reply
+    TX.after.append(IDs)
+    TX.lowerBound = max(TX.lowerBound, rts)
+    return
+
+  On Finish Execution:
+    for every TX’ in TX.before:
+        TX.lowerBound = max(TX.lowerBound, TX’.upperBound)
+    for every TX’ in TX.after:
+        TX.upperBound = min(TX.upperBound, TX’.lowerBound)
+    if TX.lowerBound > TX.upperBound:
+        Abort TX
+    Broadcast Precommit(TX.ID, (TX.lowerBound+TX.upperBound)/2)
+```
+
+**Algorithm 3: Sharding and Speculative Transaction Processing (cont.)**
+```pseudo
+On receive Precommit(ID, cts):
+  Look up TX by ID
+  if Found and cts not in [TX.lowerBound, TX.upperBound]:
+      Broadcast Abort(ID) to sender’s shard
+  TX.lowerBound = TX.upperBound = cts
+  For each data sector DS[addr] TX reads:
+      DS[addr].rts = max(DS[addr].rts, cts)
+  For each data sector DS[addr] TX writes:
+      DS[addr].wts = max(DS[addr].wts, cts)
+  Broadcast Commit(ID, batchCounter)
+
+On receive 2f+1 Commit(ID, batchCounter) from each remote shard accessed:
+  TX.lowerBound = TX.upperBound = cts
+  For each DS[addr] TX reads:
+      DS[addr].rts = max(DS[addr].rts, cts)
+  For each DS[addr] TX writes:
+      DS[addr].wts = max(DS[addr].wts, cts)
+  Mark TX committed
+  TX.metadata = [ShardID, batchCounter]
+
+On output log:
+  Sort TXs by cts, break ties by timestamp
+```
+
+---
+
+## 4. Smart Contracts in Virtual Machines
+
+### 4.1 Design Rationale
+
+Smart contracts extend the blockchain beyond a simple transaction ledger, enabling decentralized applications. To achieve this, Abey Blockchain employs a hybrid execution model that leverages both on-chain determinism and off-chain cloud scalability.
+
+### 4.2 Abey Chain Virtual Machine (AVM)
+
+The AVM provides a deterministic execution environment for smart contracts. It ensures compatibility with Ethereum Virtual Machine (EVM) standards while offering extensions to support high-performance workloads in hybrid cloud infrastructures. It integrates features for resource monitoring, dynamic scaling, and interaction with external services.
+
+---
+
+## 5. Blocks, State, and Transactions
+
+Abey Blockchain organizes data in blocks, with each block containing transactions and state updates. Blocks are validated by committees using the PoS protocol. The state is maintained as a global key-value store, updated atomically with each block. Transactions include metadata for ordering, timestamps, and cryptographic proofs.
+
+---
+
+## 6. Incentive Design
+
+Abey Blockchain incentivizes participants through transaction fees, block rewards, and a volunteer computing reward infrastructure. This ensures fairness and sustainability while encouraging participation from diverse stakeholders.
+
+### 6.1 Gas Fee and Sharding
+
+Gas fees are designed to reflect computational costs and storage use. Sharding reduces transaction costs by distributing workloads. Fees collected are shared among validators and contributors, ensuring balanced incentives.
+
+---
+
+## 7. Future Directions
+
+Future improvements include advanced sharding algorithms, enhanced interoperability with other blockchains, zero-knowledge proof integration for privacy, and broader adoption of volunteer computing for resource sharing.
+
+---
+
+## 8. Conclusions
+
+Abey Blockchain 3.0 introduces a scalable, energy-efficient PoS protocol with strong guarantees of finality, security, and fairness. By integrating committee-based consensus, sharding, hybrid smart contracts, and innovative incentive structures, it offers a powerful platform for decentralized applications.
+
+---
+
+## References
+
+1. S. Nakamoto. [Bitcoin: A Peer-to-Peer Electronic Cash System (2008)](http://bitcoin.org/bitcoin.pdf)
+2. V. Buterin. [Ethereum White Paper (2014)](https://github.com/ethereum/wiki/wiki/White-Paper)
+3. M. Castro, B. Liskov. [Practical Byzantine Fault Tolerance (1999)](https://pmg.csail.mit.edu/papers/osdi99.pdf)
+4. R. Pass, E. Shi. [Hybrid Consensus (2017)](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.DISC.2017.39)
+5. E. Androulaki et al. [Hyperledger Fabric (2018)](https://arxiv.org/pdf/1801.10228v1.pdf)
+6. R. Pass, E. Shi. [Hybrid Consensus in Permissionless Model (2017)](https://drops.dagstuhl.de/opus/volltexte/2017/7963/pdf/LIPIcs-DISC-2017-39.pdf)
+7. R. Canetti. [Universally Composable Security (2001)](https://eprint.iacr.org/2000/067.pdf)
+8. X. Yu et al. [TicToc: Time Traveling Optimistic Concurrency Control (2016)](https://dl.acm.org/doi/10.1145/2882903.2882931)
+9. R. Pass, E. Shi. [Thunderella: Blockchains with Optimistic Instant Confirmation (2017)](https://eprint.iacr.org/2017/913.pdf)
+10. H. Mahmoud et al. [Maat: Effective Coordination of Distributed Transactions (2014)](https://dl.acm.org/doi/10.14778/2732269.2732276)
+11. G. Wood. [Ethereum Yellow Paper (2018)](https://ethereum.github.io/yellowpaper/paper.pdf)
+12. E. Hildenbrandt et al. [KEVM: Semantics of the EVM (2017)](https://www.ideals.illinois.edu/items/97207)
+13. Gridcoin. [Gridcoin Whitepaper (2017)](https://www.gridcoin.us/assets/img/whitepaper.pdf)
+14. Golem Team. [Golem Project Whitepaper (2016)](https://golem.network/doc/Golemwhitepaper.pdf)
+15. D. P. Anderson. [BOINC: Public Resource Computing (2004)](https://boinc.berkeley.edu/grid_paper_04.pdf)
+16. J. Blomer et al. [CERNVM Appliance for LHC (2017)](http://iopscience.iop.org/article/10.1088/1742-6596/219/4/042003/pdf)
+17. D. Lombraña González et al. [LHC@Home Volunteer Computing (2012)](http://inspirehep.net/record/1125350/)
+18. Kubernetes Documentation. [Building Large Clusters](https://kubernetes.io/docs/admin/cluster-large/)
+19. Red Hat. [OpenShift Container Platform Cluster Limits](https://access.redhat.com/documentation/enus/openshift_container_platform/3.9/html/scaling_and_performance_guide/)
+20. Red Hat. [Container-Native Storage for OpenShift](https://redhatstorage.redhat.com/2017/10/05/containernative-storage-for-the-openshift-masses/)
+21. Kubernetes. [Increase Maximum Pods per Node: Issue #23349](https://github.com/kubernetes/kubernetes/issues/23349)
+22. OpenShift Blog. [Deploying 2048 OpenShift Nodes on CNCF Cluster](https://blog.openshift.com/deploying-2048-openshift-nodes-cncf-cluster/)
+23. T. Schmidt. [Modeling Energy Markets with Extreme Spikes (2008)](https://link.springer.com/chapter/10.1007/978-3-540-78999-6_16)
+24. W. Delbaen, F. Schachermayer. [Fundamental Theorem of Asset Pricing (1994)](https://doi.org/10.1007/BF01446532)
+25. E. Androulaki et al. [Hyperledger Fabric: Distributed OS (2018)](https://arxiv.org/pdf/1801.10228v1.pdf)
+26. G. Wood. [Ethereum Yellow Paper (2018)](https://ethereum.github.io/yellowpaper/paper.pdf)
+27. E. Hildenbrandt et al. [KEVM Extended
 
-One obvious disadvantage of this modification will be the reduction in terms of throughput due to aborting transactions when the parameter *TΔ* is inappropriate for the varying network latency. Another disadvantage is that the BFT committee members are still allowed to lie about their local time and reject certain transactions. However, committee members can reject certain transactions anyway. However honest nodes could potentially reject ignorant transactions because of their unsynchronized clocks. This issue can be reduced by adding restrictions on the eligibility of the BFT committee. Later we will see that to get into the committee, the nodes should present evidence of synchronized clocks. 
-
-**Algorithm 1:** Extra Verification Regarding Physical Timestamp
-
-Data: Input Transaction TX 
-
-Result: A Boolean value that indicates whether the verification is passed
-
-**1** *current\_time* ßTime.Now(); 
-
-**2** **if** | *current\_time* - TX.Tp| > *TΔ* then 
-
-**3** |    return false; 
-
-      // **if** the time skew is too large, reject TX.
-
-**4** var txn\_history = new static dictionary of lists;
-
-**5** **if** txn\_history[TX.from] == NULL then 
-
-**6** |   txn\_history[TX.from] == [*TX*]; 
-
-**7** **else** 
-
-**8**  |   **if** txn\_history[TX.from][-1]. Tp - TX.T p > 0 then 
-
-**9**  |  |  return false; 
-
-       // To make sure the transactions from the same node preserve timing order.
-
-**10**|   **else** 
-
-**11**|  |   txn\_history[TX.from].append(TX); **12**|  |    return true; 
-
-**3.5. Computation and Data Sharding, and Speculative Transaction Execution** 
-
-In this subsection, we introduce our sharding scheme.
-
-An important modification over the original Hybrid Consensus is that we add computation and data-sharding support for it. And even more, first of its kind, we design a speculative transaction processing system over shards. The idea is clear, In Hybrid Consensus, the DailyBFT instances are indexed into a deterministic sequence DailyBFT [1 . . . R]. We allow multiple sequences of DailyBFT instances to exist at the same time. To be precise, we denote the *t*-th DailyBFT sequence by shard St. For simplicity, we fix the number of shards as *C*. Each DailyBFT is a normal shard. Besides *C* normal shards, we have a primary shard *Sp* composed of csize nodes.
-
-The job of the primary shard is to finalize the ordering of the output of normal shards as well as implement the coordinator in distributed transaction processing systems. And the normal shards, instead of directly connecting with the Hybrid Consensus component, submit logs to the primary shard, which in turn talks to Hybrid Consensus.
-
-We do not allow any two shards (either normal or primary) to share common nodes, which can be enforced in the committee selection procedure. The election of multiple shards is similar to the election procedure described in Section 3.3.
-
-We partition the state data (in terms of account range) uniformly into C shards. This will
-
-make sure that every query to the corresponding shard will return a consistent state. Since we are going to include metadata for each data unit, we split data into units of data sectors and assign each data sector with an address. We have a mapping from data position to data sector address. For simplicity, from now on, we only discuss the level of data sectors. Each data sector DS[addr] has metadata of rts, wts, readers, and writers. 
-
-We assume the partition principle is public and given the address addr we can get its host shard by calling the function host (addr). 
-
-Notice that if we treat every normal shard (when the number of adversaries is not large) as a distributed processing unit, we can incorporate the design of logical timestamps[10] in distributed transaction processing systems[11], which will empower the processing of transactions. Here we utilized a simplified version of MaaT where we don’t do auto-adjustment of other transactions’ timestamps. 
-
-For normal shards, it acts exactly as described in DailyBFT except for the following changes to make it compatible with parallel speculative execution. 
-
-The primary shard collects output from all the normal shards. Notice that, the data dependency of transactions can be easily inferred by their metadata. And a fact is that, if a transaction visits multiple remote shards, it will leave traces in all the shards involved.  
-
-When the primary shard receives a batch of txns from a shard, it will check if it has received from all the shards transactions within this batch. If after a certain timeout it has not received transactions from a particular batch, it means that the batch has failed. In this case, a whole committee switch will be triggered at the next day's starting point. After receiving all the shards’ logs, the primary shard sorts the transactions based on their commit timestamps (if some transaction has an earlier batch number, it will be considered as the first key in the sorting, however, if its physical timestamp violates the timestamps from many shards, we decide that batch as invalid and all the transactions inside that batch are aborted). After sorting, the primary shard filters all the transactions and keeps the longest non-decreasing sequence in terms of physical timestamps. Out the log to the DPoS Consensus component as that day’s log. 
-
-There are still many optimization spaces. One certain con is that the confirmation time in this design is not instant. 
-
-**4. SMART CONTRACTS IN VIRTUAL MACHINES**
-
-**4.1. Design Rationale** 
-
-Since ours is a hybrid model, we’ll take the liberty of exploring this design space a little bit further. Let us consider the possibility of a hybrid cloud ecosystem. 
-
-A basic problem people have faced is the kind of crude mathematical notations followed in Ethereum’s yellow paper[12]. We therefore hope to follow something like KEVM Jello Paper[13] to list out the EVM and AVM (described in 4.2) specifications.  
-
-**4.1.1.** *What about containers instead of VMs?* One of the blockchain frameworks out there that come as close to this idea as possible, is Hyperledger’s Fabric framework14. If one sets out to convert Fabric’s permissioned nature into permissionless, one of the foremost challenges would be to solve the chaincode issue. What this means is while it is possible to keep a chaincode/smart contract in a single container, it is not a scalable model for a public chain. Having such a model for public chain means having to run several thousand containers, per se, several thousand smart contracts on a single node (because each node maintains a copy). 
-
-There have been attempts from the community being able to run a certain maximum number of containers per node. The limit currently is 100 pods per node, per se, approximately 250 containers per node, as illustrated in Kubernetes container orchestration platform15and Red Hat’s Openshift Container Platform 3.9’s Cluster Limits16. Even with latest storage techniques like brick multiplexing17, the max possible value (say MAX CONTR) of containers could not possibly reach (at least right now) 1000. ![](Aspose.Words.68fba5d9-5a64-44e9-9c18-4f838963b7da.004.png)
-
-**Algorithm 2**: Sharding and Speculative Transaction Processing ![](Aspose.Words.68fba5d9-5a64-44e9-9c18-4f838963b7da.005.png)**1** **On BecomeShard:** 
-
-**2**    Initialize all the state data sectors:
-
-`   `lastReaderTS = -1, lastWriterTS = -1, readers = [], writers = [] **3** **With transaction TX on shard** *Si*: 
-
-**4** **On Initialization:** 
-
-**5**    TX.lowerBound = 0; 
-
-**6**    TX.upperBound = +∞; 
-
-**7**    TX.state = RUNNING; 
-
-**8**    TX.before = []; 
-
-**9**    TX.after = []; 
-
-**10**  TX.ID = rand; 
-
-**11** **On Read Address**(addr): 
-
-**12** **if** host(addr) == *Si* then 
-
-**13**  |     Send readRemote(addr) to itself; 
-
-**14** **else** 
-
-**15**  |    Broadcast readRemote(addr, TX.id) to host(addr); 
-
-**16**  |   Async wait for 2f + 1 valid signed replies within timeout To; 
-
-**17**  |  Abort TX when the timeout ticks; 
-
-**18** Let val, wts, IDs be the majority reply; 
-
-**19** TX.before.append(IDs); 
-
-**20** TX.lowerBound = max(TX.lowerBound, wts); 
-
-**21** return val; 
-
-**22** **On Write Address**(addr): 
-
-**23** **if** host(addr) == Si **then** 
-
-**24**  |   Send writeRemote(addr) to itself; 
-
-**25** **else** 
-
-**26**  |   Broadcast writeRemote(addr, TX.id) to host(addr); 
-
-**27**  |   Async wait for 2*f* + 1 valid signed replies within timeout To; 
-
-**28**  |   Abort TX when the timeout ticks. 
-
-**29** Let rts, IDs be the majority reply; 
-
-**30** TX.after.append(IDs) TX.lowerBound = max(TX.lowerBound, rts); **31** return; 
-
-**32** **On Finish Execution: for** *every* TX’*in*TX.*before* **do** 
-
-**33** |   TX.lowerBound  = max(TX.lowerBound, TX’.upperBound); 
-
-**34** **for** every TX’inT X.*after* **do** 
-
-**35** |   TX.upperBound  = min(TX.upperBound, TX’.lowerBound); **36** **if** TX.lowerBound ¿ TX.*upperBound* **then** 
-
-**37** |   Abort TX; 
-
-**38** Broadcast *Precommit*(T X.ID, |TX.*lowerBound*+TX.upperBound/2|) to all the previous remote 
-
-` `shards which T X has accessed;
-
-` `// If TX.upperBound = ∞, we can set an arbitrary number larger than      TX.lowerBound. 
-
-**39** **On receive** readRemote(addr, ID): 
-
-**40** **if** host(addr) == Si **then** 
-
-**41** |   DS[addr].readers.append(ID);
-
-**42** |   return DS[addr].value, DS[addr].wts, DS[addr].writers;
-
-**43** **else** 
-
-**44** |  Ignore 
-
-**45** **On receive** writeRemote(addr, ID): 
-
-**46 if** host(addr) == Si then 
-
-**47** |   DS[addr].writers.append(ID); 
-
-**48** |   Write to a local copy; 
-
-**49** |   return DS[addr].rts, DS[addr].readers;
-
-**50** **else** 
-
-**51** |  Ignore  ![](Aspose.Words.68fba5d9-5a64-44e9-9c18-4f838963b7da.006.png)
-
-**Algorithm 3**: Sharding and Speculative Transaction Processing (cont.) ![](Aspose.Words.68fba5d9-5a64-44e9-9c18-4f838963b7da.007.png)**1** **On receive** Precommit(ID, cts): 
-
-**2** Look up TX by ID; 
-
-**3** **if** *Found and* cts *not in* [TX.lowerBound, TX.upperBound] **then** 
-
-**4** |     Broadcast *Abort*(ID) to the sender’s shard.;
-
-**5** TX.lowerBound = TX.upperBound = cts; 
-
-**6** For every data sector DS[*addr*] TX reads, set DS[*addr*].rts = *max*(DS[*addr*].rts, cts); **7** For every data sector DS[*addr*] TX writes, set DS[*addr*].wts = *max*(DS[*addr*].wts, cts); **8** Broadcast *Commit*(*ID, batchCounter*) to the sender’s shard.; 
-
-`    `// batchCounter is a number which increases by 1 whenever the shard submit a batch 
-
-of log      to the primary shard.
-
-**9** **On receive** 2*f* + 1 Commit(ID, batchCounter) **from each remote shards which** T X **has** 
-
-`   `**accessed:** 
-
-**10** TX.lowerBound = TX.upperBound = cts;
-
-11 For every data sector DS[addr] TX reads, set DS[addr].rts = max(DS[addr].rts, cts); 12 For every data sector DS[addr] TX writes, set DS[addr].wts = max(DS[addr].wts, cts); 13 Mark *TX* committed; 
-
-14 Let *TX.metadata* = [*ShardID, batchCounter*]; 
-
-15 **On output log** 
-
-16 Sort *TX’s* based on their *cts*. Break ties by physical timestamp.
-
-This issue could further be looked up in the discussions on Kubernetes issues GitHub page18around workload-specific limits that usually determine the maximum pods per node. People who wish to scale containers usually prefer horizontal scaling rather than a vertical scaleup19, as the latter significantly increases complexity of design decisions. And there’s no one-size-fits-them-all rule for a cluster scale configuration as that entirely depends on the workload, which being more in our case due to its decentralized nature, isn’t very convincing for taking a step towards scaling this. At this point, it becomes more of an innovation problem than a simple technical specification search. Ethereum currently has > 1000 smart contracts deployed. Therefore, this would be nothing but a crude attempt at optimizing the container ecosystem’s design space.
-
-Now let us expand a bit on the container scenario. Given the above crisis, a possible solution is to use container in a serverless architecture. But consider a scenario where > 2000 contracts are online and the concurrent requests, i.e., invocation calls to chaincode (a moving window) at a time exceed MAX CONTR value, we then face the same problem all over again. Therefore, it is only advisable to add a throttling rate limit 
-
-12
-
-on the max concurrent requests. This severely limits the Transactions Per Second from the consensus, by design. Engineering should not be a bottleneck to what could be achievable alternatively. Therefore, we choose to stick to EVM design, although a bit modified for our purpose. 
-
-2. **Abey Chain Virtual Machine (AVM**). A typical example in this space would be that of the Ethereum Virtual Machine (EVM)20, which tries to follow total determinism, is completely optimized and is as simple as it gets, to make incentivization a simple step to calculate. It also supports various features like off-stack storage of memory, contract delegation and invocation value storage.  
-
-   We would reuse the EVM specifications for the SnailChain, but add a new specification for AVM in the next version of this Yellow Paper, after careful consideration of the design rationale similar to EVM, deriving the stack-based architecture utilizing the Keccak-256 hashing technique and the Elliptic-curve cryptography (ECC) approach. 
-
-The AbeyCHAIN infrastructure will utilize a combination of EVM and another EVM-like bytecode execution platform for launching smart contracts. We choose to use one VM for PBFT, embedded within each full node, so they could manage invocation calls on per-need basis. 
-
-The AVM backs the DailyBFT powered chains, which interact with the following components: 
-
-- re-using some of the concepts from tendermint, like the ABCI (Application Block Chain Interface) which offers an abstraction level as means to enable a consensus engine running in one process to manage an application state running in another.
-- A different consensus engine pertaining to DailyBFT chain,
-- A permissioned Ethereum Virtual Machine
-- An RPC gateway, which guarantees (in a partially asynchronous network) transaction finality
-
-#TODO - formally define transition states of AVM, smart contracts deployment strategy and a way to deploy permissioned VM onto a permissionless chain.
-
-5. **BLOCKS, STATE, AND TRANSACTIONS**
-1. **Block and committee signatures** 
-
-The block of Abey 3.0 Chain , which mainly contains the transactions and smart contracts, is generated by the PoS committee when they reach a consensus. Similar to Ethereum block, fast block provides TxHash, Root, ReceiptHash for other non-members to verify transactions included at fast block body. Different from Ethereum block, the block of Abey Chain includes the committee information and signs from validators. 
-
-The commitInfo field includes all the committee members, it presents at the first block of every epoch. 
-
-The signs filed includes the parent block signatures and this block signatures from validators, but only the parent block signatures will be calculated as SignHash in block header. 
-
-2. **Parallel transaction execution** As of today, the multi-core processor architecture has become a major trend in the industry, as parallelization technology can fully utilize the potential of CPUs. AbeyCHAIN’s Parallelizing Transaction Execution mechanism uses the advantages of multi-core processors to the fullest by enabling transactions in blocks to be executed in parallel as much as possible.
-
-   The traditional transaction execution mechanism works mostly as such: transactions are read one by one from the block.  After each transaction is executed, the state machine will move to the next state until all transactions are executed sequentially.
-
-If two transactions have no actual dependency between each other but are deemed so, this will cause unnecessary loss of performance efficiency.  On the contrary, if the two transactions rewrite the state of the same account but are executed in parallel, the final state of the account may be uncertain. Therefore, the determination of dependency is an important issue that affects performance and even indicates whether the blockchain can work normally. 
-
-We can easily tell whether two transactions are dependent by observing the address of the sender and receiver, such as the following example transactions: A→B, C→D, D→E.  Here, you can see that transaction D→E depends on the result of transaction C→D, but transaction A→B has little relationship with the other two transactions, therefore can be executed in parallel.
-
-This analysis is correct in a blockchain that only supports simple transactions, but it may not be as accurate once it is placed in a Turing-complete blockchain that runs smart contracts – because it is impossible to know exactly what is in the transaction contract written by the user. Transaction A->B seems to have nothing to do with the account 
-
-status of C and D.  However, in reality party A is a special account.  When each transaction is transferred through A’s account, transaction fees must be deducted from party C’s account first. In this scenario, all three transactions are actually related, so they cannot be executed in parallel. 
-
-In order to resolve this type of situation, we adopt a trial and error method.  Specific steps are as such: 
-
-1. Preparing: convert all transactions to “message” type;
-1. Grouping: group transactions according to associated address;
-1. Executing: execute each transaction group in parallel;
-1. Check for conflicts: check whether the transaction groups are in conflict according to returned results. If there is a conflict, roll back the conflicting transactions, then regroup and re-execute.
-1. Collect results: collect the execution results of each group, update the tree, and generate the state root
-
-With the above method, transaction-related issues in parallel transactions can be resolved. Of course, inaccurate initial grouping, transaction rollback may still cause performance inefficiency at times.  But in most cases, transactions are irrelevant.  It is feasible to accurately group and execute transactions in parallel to improve transaction execution efficiency. 
-
-6. **INCENTIVE DESIGN**
-
-The Proof of work protocol have a proven track record of attracting computational resources at an unprecedented rate. While existing PoW networks such as Bitcoin and Ethereum have been successful in their own right, the computational resources they attracted have been nothing more than very powerful hash calculators. They cost a lot of electricity to run and produce nothing useful.
-
-In this section we will present a concept of compensation infrastructure in order to balance the workload of PoS committee members and non-member full nodes, where participating resources can be redirected to do useful things, such as scaling transactions-per-second (referred to as “TPS” from here on) and providing on-chain data storage. 
-
-Ethereum gas price is determined by a spot market with no possibility of arbitrage, similar to that of electricity spot market studied in21]. We consider this market to be incomplete, and therefore, fundamental theorem of asset pricing does not apply22. Thus, the underlying gas price will follow a shot-noise process, that is known for its high volatility. We introduce a “gas marketplace” where gas will be traded as futures, and this market is complete in the infinitesimal limit. This is expected to significantly reduce gas price volatility compared to Ethereum. 
-
-The following subsections will be talking about each component of the incentive design in detail. 
-
-**6.1. Gas fee and sharding**. Gas price is traded in a futures market, where the futures contract is manifested by a smart contract. Specifically, the contract will be executed as follows. 
-
-- Party A agree to pay party B *xxx* Abey, while party B promises to execute party A’s smart contract, between time *T0* and *T1*, that cost exactly 1 gas to run.
-- Party B will contribute *xxx* Abey to a pool corresponding to the committee C that executed party A’s smart contract. This is called the gas pool.
-- Members of C will receive an equal share of the pool and return an average cost per gas µ for the pool.
-- If B contributed less than µ, she must make up for the difference by paying another party who contributed more than µ. If B contributed more than µ, she will receive the difference from another party.
-
-Under this scheme, liquidity providers are rewarded when they correctly anticipate network stress, and hence creating a complete market in the infinitesimal limit. Price volatility are absorbed by the averaging mechanism in the gas pool making the price itself a good indicator of network stress.
-
-Our intention to ensure gas price is traded roughly within a predetermined interval. Hence, if the moving average price sustain above a certain threshold, a new PBFT committee is spawned through a quantum appearance process. 
-
-On the other hand, if the moving average price sustain below a certain threshold, an existing PBFT committee will not be given a successor after it finished serving its term.
-
-The proportion of mining reward will be distributed as follows. Let *n* be the number of PBFT committee running at a certain instance, and α > 1. Proportion of mining reward going to PBFT nodes is equal to *n*/α +*n*, and PoW nodes α/α +*n*. This is to reflect that in later stages of the chain, new nodes are incentivized to contribute to the blockchain’s overall TPS, hence ensuring continued scalability of the chain. The parameter ↵ represent the number of PBFT committees when mining reward is divided 50-50. 
-
-Treating all shards as equivalent of each other in terms of network and CPU bandwidth
-
-could produce skewed results, with inconsistent TPS, or worse, sometimes cross timeout limits, while ordering of transaction takes place from the Primary shard. To tackle this, we propose a compensation infrastructure, that works along the lines of Berkeley Open Infrastructure for Network Computing. There has been a previous attempt in this area from Gridcoin23and Golem network24. 
-
-Gridcoin’s distributed processing model relies pre-approved frameworks to the like of Berkeley Open Infrastructure for Network Computing (BOINC)25, an opensource distributed volunteer computing infrastructure, heavily utilized within cernVM26 in turn, harnessed by the LHC@Home project27 A framework like this has to tackle non-uniform wealth distribution over time. On the other hand, Golem is another great ongoing project with concrete incentivization scheme, which would be used as an inspiration for compensation infrastructure’s incentivization methodology. However, keeping in mind, a widely known problem is that a blockchain powered volunteer computing based rewarding model could easily fall prey to interest inflation if the design lacks a decent incentive distribution scheme over time. So to speak, an increasing gap between initial stake holders minting interest due to beginner’s luck (algorithmic luck) and the contributors joining late, could thence be found fighting for rewards from smaller compensation pools that further condense. 
-
-Depending on the kinds of transactions and whether we’d need decentralized storage for some of the smart contracts, we propose the use of a hybrid infrastructure that utilizes BOINC and IPFS/Swarm, alongside of EVM and AVM. This would make use of Linux Containers to deal with isolation of resources and we hope to expand on this section in the next version of this Yellow Paper.
-
-7. **FUTURE DIRECTION**
-
-Even after optimizations to the original Abey 3.0 PoS Consensus, we acknowledge various optimizations possible on top of what was proposed in this paper. There are following possibilities: 
-
-- Improving timestamp synchronization for all nodes, with no dependency on centralized NTP servers.
-- Detailed incentivization techniques for compensation infrastructure, so heavy infrastructure investors don’t suffer from ’left-out’, ’at a loss’ problem
-- Sharding techniques with replica creation to minimize the transaction set rejection from the pos committee.
-- Addition of zero knowledge proof techniques for privacy.
-- Hybrid infrastructure of AVM and Linux container ecosystem.
-- Sections for Virtual Machine Specification, Binary Data Encoding Method, Signing Transactions, Fee schedule and Ethash alternative.
-8. **CONCLUSIONS**
-
-We have formally defined Abey 3.0 PoS Consensus protocol and its implementation along with plausible speculations in the original proposal. In this draft, we have introduced various new concepts some of which we will detail in the next version very soon.  
-
-- The PoS committee is a rotating one, preventing corruption in a timely manner
-- The PoS committee is responsible for transaction validation, and staking is responsible for choosing/electing the committee members according to some rules we’ve derived and re-defined.
-- The new VM (which we call Abey Chain Virtual Machine - AVM), we’ve surmised, could be inspired from the EVM, but with different block states and transaction execution flows, transaction parallel processing will be adopted.
-- The incentivization model needs to be re-worked such that it is based on of AVM.
-- We would eventually support sharding for the PoS committee nodes, for scalability.
-- We address the storage issue for high TPS public chains and introduced a method that seamlessly merge transaction process with decentralized data storage.
-- A compensation infrastructure, which accounts for node configuration non - uniformity (different CPU/memory/network bandwidth in the node pool), would eventually be a part of the consensus, thus speeding up transactions.
-- The smart contracts execution would thus only happen in AVM (BFT node).![](Aspose.Words.68fba5d9-5a64-44e9-9c18-4f838963b7da.008.png)
-
-1 S. Nakamoto. Bitcoin: A peer-to-peer electronic cash system. URL http://bitcoin.org/bitcoin.pdf, 2008. 2 V. Buterin. Ethereum white paper, 2014. URL htt[ps://github.com/ethereum/wiki/wiki/White-Paper. ](https://github.com/ethereum/wiki/wiki/White-Paper)
-
-3 M. Castro, B. Liskov, et al. Practical byzantine fault tolerance. In OSDI, volume 99, pages 173–186, 1999. 
-
-4 Id at 173 – 186. 
-
-5 E. Androulaki, A. Barger, and V. e. a. Bortnikov. Hyperledger fabric: A distributed operating system for permissioned blockchains. URLhttps://arxiv.org/pdf/1801.10228v1.pdf, 2018.![](Aspose.Words.68fba5d9-5a64-44e9-9c18-4f838963b7da.009.png)
-
-6 R. Pass and E. Shi. Hybrid consensus: Efficient consensus in the permissionless model. In LIPIcs - Leibniz International Proceedings in Informatics, volume 91. Schloss Dagstuhl-Leibniz-Zentrum fuer Informatik, 2017. 
-
-7 R. Canetti. Universally composable security: A new paradigm for cryptographic protocols. In Foundations of Computer Science, 2001. Proceedings. 42nd IEEE Symposium on, pages 136–145. IEEE, 2001. 
-
-8 R. Pass and E. Shi. Hybrid consensus: Efficient consensus in the permissionless model. In LIPIcs - Leibniz International Proceedings in Informatics, volume 91. Schloss Dagstuhl-Leibniz-Zentrum fuer Informatik, 2017 
-
-9 R. Pass and E. Shi. Thunderella: blockchains with optimistic instant confirmation, 2017.
-
-10 X. Yu, A. Pavlo, D. Sanchez, and S. Devadas. Tictoc: Time traveling optimistic concurrency control. In Proceedings of the 2016 International Conference on Management of Data, pages 1629–1642. ACM, 2016. 
-
-11 H. A. Mahmoud, V. Arora, F. Nawab, D. Agrawal, and A. El Abbadi. Maat: Effective and scalable coordination of distributed transactions in the cloud. Proceedings of the VLDB Endowment, 7(5):329–340, 2014. 
-
-12 G. Wood. Ethereum: A secure decentralized generalized transaction ledger. URL https://ethereum.github.io/yellowpaper/paper.pdf, 2018.
-
-13 E. Hildenbrandt, M. Saxena, and X. e. a. Zhu. Kevm: A complete semantics of the ethereum virtual machine. URL https://www.ideals.illinois.edu/handle/2142/97207, 2017.
-
-14 E. Androulaki, A. Barger, and V. e. a. Bortnikov. Hyperledger fabric: A distributed operating system for permissioned blockchains. URLhttps://arxiv.org/pdf/1801.10228v1.pdf, 2018.
-
-15 Kubernetes: Building large clusters. URL https://kubernetes.io/docs/admin/cluster-large/. 
-
-16 Red hat openshift container platform’s cluster limits. URL https://access.redhat.com/documentation/enus/openshift container platform/3.9/html/scaling and performance guide/. 
-
-17 Container-native storage for the openshift masses. URL https://redhatstorage.redhat.com/2017/10/05/containernative-storage-for-the-openshift-masses/. 
-
-18 Increase maximum pods per node: GitHub/kubernetes/kubernetes#23349. URL https://github.com/kubernetes/kubernetes/issues/23349.
-
-19 Deploying 2048 openshift nodes on the cncf cluster. URL https://blog.openshift.com/deploying-2048- openshift-nodes-cncf-cluster/.. See also Kubernetes scaling and performance goals. URL https://github.com/kubernetes/community/blob/master/sigscalability/goals.md.
-
-20 G. Wood. Ethereum: A secure decentralized generalized transaction ledger. URL https://ethereum.github.io/yellowpaper/paper.pdf, 2018.
-
-21 T. Schmidt. Modelling energy markets with extreme spikes. In: Sarychev A., Shiryaev A., Guerra M., Grossinho M..R. (eds) Mathematical Control Theory and Finance, pp 359-375. Springer, Berlin, Heidelberg, 2008. 
-
-22 W. Delbaen, Freddy; Schachermayer. A general version of the fundamental theorem of asset pricing. Mathematische Annalen. 300 (1): 463–520., 1994. 
-
-23 Gridcoin whitepaper: The computation power of a blockchain driving science and data analysis. URL https://www.gridcoin.us/assets/img/whitepaper.pdf.
-
-24 T. G. team. The golem project:URL 2016.https://golem.network/doc/Golemwhitepaper.pdf, 2016.
-
-25 D. P. Anderson. Boinc: A system for public-resource computing and storage. URL https://boinc.berkeley.edu/grid paper 04.pdf.
-
-26 J. Blomer, L. Franco, A. Harutyunian, P. Mato, Y. Yao, C. Aguado Sanchez, and P. Buncic. Cernvm– a virtual software appliance for lhc applications. URL http://iopscience.iop.org/article/10.1088/1742 - 6596/219/4/042003/pdf, 2017.
-
-27 D. e. a. Lombra˜na Gonz´alez. Lhchome: a volunteer computing system for massive numerical simulations of beam dynamics and high energy physics events. URL http://inspirehep.net/record/1125350/.
