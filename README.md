@@ -1,4 +1,4 @@
-# Abey Dev Docs
+# Abey Docs
 
 Mainnet 
 * RPC: [https://rpc.abeychain.com](https://rpc.abeychain.com)
