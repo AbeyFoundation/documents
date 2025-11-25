@@ -8,5 +8,5 @@ Mainnet
 Testnet 
 * RPC: [https://testrpc.abeychain.com](https://testrpc.abeychain.com)
 * Chain ID: 178
-* Explorer: [https://testnet-explorer.abeychain.com](https://testnet-explorer.abeychain.com)
+* Explorer: [https://testnet.abeyscan.com](https://testnet.abeyscan.com)
 * Faucet: [https://testnet-faucet.abeychain.com](https://testnet-faucet.abeychain.com)
